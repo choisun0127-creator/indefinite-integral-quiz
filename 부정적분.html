@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>미적분 부정적분 라이브 챌린지 (20초 타임어택)</title>
+    
+    <!-- Firebase SDK (v8 호환 모드) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <!-- QR코드 생성 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: #f0f4f8; color: #333; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 12px; touch-action: manipulation; }
+        .container { width: 100%; max-width: 1100px; background: #ffffff; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); padding: 25px; margin-top: 5px; }
+        
+        h1, h2 { text-align: center; color: #1e3c72; margin-bottom: 12px; }
+        .badge { display: inline-block; background: #ff6b6b; color: #fff; padding: 5px 12px; border-radius: 15px; font-size: 13px; font-weight: bold; }
+        .card { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 12px; padding: 15px; margin-bottom: 15px; }
+        
+        .btn { display: inline-block; background: #2a5298; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; transition: 0.2s; text-align: center; text-decoration: none; }
+        .btn:hover { background: #1e3c72; }
+        .btn:disabled { background: #adb5bd !important; cursor: not-allowed; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-warning { background: #fd7e14; }
+        .btn-danger { background: #dc3545; }
+        .btn-block { width: 100%; display: block; }
+        .btn-center { display: flex; justify-content: center; gap: 10px; margin-top: 15px; }
+
+        .timer-container { width: 100%; background: #e9ecef; height: 14px; border-radius: 7px; overflow: hidden; margin: 12px 0; }
+        .timer-bar { width: 100%; height: 100%; background: #28a745; transition: width 1s linear, background-color 0.5s ease; }
+
+        .question-box { background: #fdfdfd; border: 2px solid #2a5298; border-radius: 15px; padding: 25px 15px; text-align: center; margin: 15px 0; }
+        .q-source { font-size: 14px; color: #e64980; font-weight: bold; margin-bottom: 6px; }
+        .q-text { font-size: 22px; font-weight: bold; color: #111; line-height: 1.5; margin: 10px 0; word-break: keep-all; }
+        .q-answer-box { background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 8px; padding: 12px; font-size: 19px; color: #2e7d32; font-weight: bold; margin-top: 12px; display: none; }
+
+        .live-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin-top: 15px; }
+        .live-card { background: #fff; border: 2px solid #dee2e6; border-radius: 10px; padding: 10px; text-align: center; }
+        .live-card.submitted { border-color: #28a745; background: #f4fbf5; }
+        .thumb-canvas { width: 100%; height: 80px; border: 1px dashed #ccc; border-radius: 6px; background: #fff; margin: 6px 0; object-fit: contain; }
+
+        .canvas-wrapper { position: relative; width: 100%; }
+        #draw-canvas { border: 2px solid #2a5298; border-radius: 10px; background: #ffffff; touch-action: none; width: 100%; height: 260px; display: block; }
+        .canvas-locked-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(240, 240, 240, 0.75);
+            display: none; justify-content: center; align-items: center;
+            border-radius: 10px; font-size: 16px; font-weight: bold; color: #dc3545;
+        }
+
+        .score-table { width: 100%; border-collapse: collapse; margin-top: 15px; text-align: center; font-size: 14px; }
+        .score-table th, .score-table td { border: 1px solid #dee2e6; padding: 9px; }
+        .score-table th { background: #2a5298; color: white; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- 역할 선택 -->
+    <div id="view-mode-select">
+        <h1>📐 미적분 라이브 챌린지</h1>
+        <p style="text-align: center; color: #666; margin-bottom: 25px;">진행하실 역할을 선택해 주세요.</p>
+        <div style="display: flex; gap: 15px; max-width: 480px; margin: 0 auto;">
+            <button class="btn btn-block" style="padding: 22px; font-size: 17px;" onclick="chooseMode('teacher')">🖥️ 교사용 모드<br><small style="font-size:12px; font-weight:normal;">(QR코드 / 20초 타이머 / 채점 제어)</small></button>
+            <button class="btn btn-success btn-block" style="padding: 22px; font-size: 17px;" onclick="chooseMode('student')">📱 학생용 모드<br><small style="font-size:12px; font-weight:normal;">(손글씨 정답 제출)</small></button>
+        </div>
+    </div>
+
+    <!-- ==================== 교사용 ==================== -->
+    <div id="view-teacher" class="hidden">
+        
+        <!-- 대기실 + QR 코드 + 조 설정 -->
+        <div id="t-setup-screen">
+            <h2>🖥️ [교사용 대기실] 학생 QR 접속 & 조원 세팅</h2>
+            <p style="text-align: center; color: #666; font-size: 13px; margin-bottom: 15px;">
+                HTML 파일을 <strong>웹에 올린 뒤</strong> 그 주소를 아래에 적으면, 해당 주소로 접속하는 QR코드가 생성됩니다.
+            </p>
+            
+            <div style="display:flex; flex-wrap:wrap; gap:20px; justify-content:center; align-items:flex-start; margin-bottom:20px;">
+                <!-- QR 코드와 URL 입력 -->
+                <div class="card" style="text-align: center; width: 260px; padding: 15px;">
+                    <div style="font-weight: bold; margin-bottom: 8px; color: #1e3c72;">📱 학생 참여 QR코드</div>
+
+                    <div class="input-group" style="margin-bottom:8px; text-align:left; font-size:12px;">
+                        <label style="font-weight:bold; margin-bottom:3px;">학생 접속용 주소(URL)</label>
+                        <input type="text" id="t-join-url" placeholder="예: https://....../calculus_20s_game.html"
+                               style="width:100%; padding:6px 8px; border-radius:6px; border:1px solid #ced4da; font-size:12px;">
+                        <div style="font-size:11px; color:#777; margin-top:4px;">
+                            • 반드시 <strong>http:// 또는 https://</strong>로 시작해야 합니다.<br>
+                            • 단순히 파일을 더블클릭해 연 경우에는 QR 접속이 되지 않습니다.
+                        </div>
+                    </div>
+
+                    <div id="qrcode" style="display:inline-block; padding:5px; background:#fff; min-height:160px;"></div>
+
+                    <button class="btn btn-success btn-block" style="margin-top:8px; font-size:13px; padding:8px 10px;"
+                            onclick="renderQRCode()">QR코드 생성 / 갱신</button>
+                </div>
+
+                <!-- 7개 조 4인 명단 설정 -->
+                <div style="flex:1; min-width:320px; max-height:50vh; overflow-y:auto;" id="t-setup-grid"></div>
+            </div>
+
+            <div class="btn-center">
+                <button class="btn btn-success" style="font-size: 17px; padding: 12px 30px;" onclick="teacherStartGame()">🚀 20초 타임어택 챌린지 시작</button>
+            </div>
+        </div>
+
+        <!-- 교사용 진행 화면 -->
+        <div id="t-game-screen" class="hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #eef2f7; padding: 10px 18px; border-radius: 10px;">
+                <div>
+                    <span class="badge" id="t-round-badge">Round 1</span>
+                    <strong style="margin-left: 8px; font-size: 17px;" id="t-round-title">교과서 종합 믹스</strong>
+                </div>
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span style="font-weight: bold; color: #2a5298;" id="t-q-num">문제 1 / 5</span>
+                    <span class="badge" id="t-timer-text" style="background:#28a745; font-size:15px;">20초</span>
+                </div>
+            </div>
+
+            <div class="timer-container">
+                <div class="timer-bar" id="t-timer-bar"></div>
+            </div>
+
+            <div class="question-box">
+                <div class="q-source" id="t-q-source">[교과서 연계]</div>
+                <div class="q-text" id="t-q-content">문제가 로딩 중입니다...</div>
+                <div class="q-answer-box" id="t-q-answer">정답: x + C</div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong style="color: #495057;">✍️ 7개 조 실시간 손글씨 제출 현황</strong>
+                    <span style="font-size: 12px; color: #666;">정답을 맞힌 조에 체크 후 [다음 문제]를 눌러 주세요.</span>
+                </div>
+                <div class="live-grid" id="t-live-grid"></div>
+            </div>
+
+            <div class="btn-center">
+                <button class="btn btn-warning" id="btn-t-reveal" onclick="teacherRevealAnswer()">💡 지금 즉시 정답 공개</button>
+                <button class="btn btn-success" style="font-size: 16px; padding: 12px 28px;" onclick="teacherNextQuestion()">다음 문제로 ➜</button>
+            </div>
+        </div>
+
+        <!-- 점수판 -->
+        <div id="t-scoreboard-screen" class="hidden">
+            <h2 id="t-score-title">🏁 라운드 결과 집계</h2>
+            <p style="text-align: center; color: #666; font-size: 13px;" id="t-score-subtitle">현재까지의 순위 및 누적 점수입니다.</p>
+
+            <table class="score-table">
+                <thead>
+                    <tr>
+                        <th>순위</th>
+                        <th>조명</th>
+                        <th>1R</th>
+                        <th>2R</th>
+                        <th>3R</th>
+                        <th>4R</th>
+                        <th>총점 (20점 만점)</th>
+                    </tr>
+                </thead>
+                <tbody id="t-score-tbody"></tbody>
+            </table>
+
+            <div class="btn-center">
+                <button class="btn btn-success" id="btn-t-nextround" onclick="teacherNextRound()">다음 라운드 시작 ➜</button>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ==================== 학생용 ==================== -->
+    <div id="view-student" class="hidden">
+
+        <!-- 로그인 -->
+        <div id="s-login-screen">
+            <h2>📱 학생 라이브 참가</h2>
+            <p style="text-align: center; color: #666; font-size: 13px; margin-bottom: 20px;">본인의 조와 이름을 선택해 주세요.</p>
+            
+            <div class="card" style="max-width: 400px; margin: 0 auto;">
+                <div style="margin-bottom: 12px;">
+                    <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:4px;">참여할 조 선택</label>
+                    <select id="s-select-team" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ced4da;">
+                        <option value="">-- 조 선택 --</option>
+                        <option value="0">1조</option>
+                        <option value="1">2조</option>
+                        <option value="2">3조</option>
+                        <option value="3">4조</option>
+                        <option value="4">5조</option>
+                        <option value="5">6조</option>
+                        <option value="6">7조</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label style="display:block; font-size:13px; font-weight:bold; margin-bottom:4px;">본인 이름</label>
+                    <input type="text" id="s-input-name" placeholder="예: 김민수" style="width:100%; padding:10px; border-radius:6px; border:1px solid #ced4da;">
+                </div>
+                <button class="btn btn-success btn-block" onclick="studentJoin()">입장하기</button>
+            </div>
+        </div>
+
+        <!-- 학생 풀이 화면 -->
+        <div id="s-game-screen" class="hidden">
+            <div style="display: flex; justify-content: space-between; align-items: center; background: #eef2f7; padding: 8px 12px; border-radius: 8px; margin-bottom: 10px; font-size: 13px;">
+                <span id="s-header-team" style="font-weight: bold; color: #1e3c72;">1조</span>
+                <span class="badge" id="s-timer-badge">20초</span>
+                <span id="s-header-q" style="font-weight: bold;">문제 1/5</span>
+            </div>
+
+            <div id="s-role-banner" style="padding: 10px; border-radius: 8px; margin-bottom: 10px; font-size: 13px; font-weight: bold; text-align: center;"></div>
+
+            <div class="question-box" style="padding: 15px; margin: 10px 0;">
+                <div class="q-source" id="s-q-source" style="font-size:12px;">[교과서 연계]</div>
+                <div class="q-text" id="s-q-content" style="font-size: 17px;">교사용 화면에서 문제를 시작하기를 기다리고 있습니다...</div>
+                <div class="q-answer-box" id="s-q-answer"></div>
+            </div>
+
+            <div class="card" id="s-canvas-panel" style="padding: 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-size:13px; font-weight:bold; color:#2a5298;">✍️ 아래 칸에 펜이나 손가락으로 정답 작성:</span>
+                    <button class="btn btn-danger" id="btn-s-clear" style="padding:4px 10px; font-size:12px;" onclick="clearCanvas()">지우기</button>
+                </div>
+
+                <div class="canvas-wrapper">
+                    <canvas id="draw-canvas"></canvas>
+                    <div class="canvas-locked-overlay" id="s-canvas-overlay">🔒 20초가 끝나 작성이 마감되었습니다.</div>
+                </div>
+
+                <button class="btn btn-success btn-block" style="margin-top: 10px; padding: 12px; font-size: 16px;" id="btn-s-submit" onclick="studentSubmitDrawing()">✍️ 작성한 정답 제출하기</button>
+                <div id="s-submit-status" style="text-align: center; font-size: 13px; color: #28a745; margin-top: 8px; font-weight: bold; display: none;">✅ 제출 완료! 교사용 화면으로 전송되었습니다.</div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<script>
+    /* ----------------- Firebase 설정: 선생님 값으로 교체 ----------------- */
+    const firebaseConfig = {
+        apiKey: "여기에_API_KEY_입력",
+        authDomain: "프로젝트ID.firebaseapp.com",
+        databaseURL: "https://프로젝트ID-default-rtdb.firebaseio.com",
+        projectId: "프로젝트ID",
+        storageBucket: "프로젝트ID.appspot.com",
+        messagingSenderId: "발송자ID",
+        appId: "앱ID"
+    };
+
+    let db = null;
+    try {
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    } catch(e) {
+        console.warn("Firebase 설정이 채워지지 않았습니다.");
+    }
+
+    /* ----------------- 퀴즈 데이터 (이미 교과서 기반 20문항) ----------------- */
+    const quizData = [ /* (앞에서와 동일 – 생략 없이 둔 상태입니다) */ 
+        {
+            round: 1, title: "교과서 개념 믹스 I",
+            questions: [
+                { source: "교과서 [생각 열기]", q: "2x², x²+1, x²+x, x², 2x+1, x²-3 중 미분하면 2x가 되는 함수를 모두 고르면?", a: "x², x²+1, x²-3" },
+                { source: "교과서 [공식: y=1 적분]", q: "(x)' = 1 임을 이용할 때, 상수함수 y=1의 부정적분 ∫ 1 dx 의 결과는?", a: "x + C" },
+                { source: "교과서 [문제 2-(1)]", q: "등식 ∫ f(x) dx = x² + 5x + C 를 만족시키는 함수 f(x)는?", a: "f(x) = 2x + 5" },
+                { source: "교과서 [문제 3-(1)]", q: "다음 부정적분을 구하시오: ∫ x⁵ dx", a: "(1/6)x⁶ + C" },
+                { source: "교과서 [보기 (1)]", q: "(3x)' = 3 임을 이용하여 부정적분 ∫ 3 dx 를 구하시오.", a: "3x + C" }
+            ]
+        },
+        {
+            round: 2, title: "교과서 개념 믹스 II",
+            questions: [
+                { source: "교과서 [날개: 수학사]", q: "적분 기호 ∫는 '합'을 뜻하는 라틴어의 어떤 단어의 첫 글자(S)에서 유래되었을까요?", a: "Summa (숨마)" },
+                { source: "교과서 [문제 1]", q: "( 2/3 x³ - x )' = 2x² - 1 임을 이용하여 부정적분 ∫ (2x² - 1) dx 를 구하시오.", a: "2/3 x³ - x + C" },
+                { source: "교과서 [문제 3-(2)]", q: "다음 부정적분을 구하시오: ∫ x¹⁰ dx", a: "(1/11)x¹¹ + C" },
+                { source: "교과서 [본문 정의]", q: "F'(x) = f(x)일 때 F(x)를 f(x)의 ( &nbsp; )이라 하고, 뒤에 붙는 상수 C를 ( &nbsp; )라 한다.", a: "부정적분, 적분상수" },
+                { source: "교과서 [문제 2-(2)]", q: "등식 ∫ f(x) dx = x³ + 3x² - 2x + C 를 만족시키는 f(x)는?", a: "f(x) = 3x² + 6x - 2" }
+            ]
+        },
+        {
+            round: 3, title: "교과서 개념 믹스 III",
+            questions: [
+                { source: "교과서 [함께하기 공식]", q: "양의 정수 n에 대하여 함수 y = xⁿ의 부정적분 공식 ∫ xⁿ dx 는?", a: "1/(n+1) · x^(n+1) + C" },
+                { source: "교과서 [본문 개념 확인]", q: "도함수가 2x로 같은 여러 부정적분들은 모두 '무엇'만 서로 다를까요?", a: "상수항 (적분상수)" },
+                { source: "교과서 [보기 (2)]", q: "(2x³)' = 6x² 임을 이용하여 부정적분 ∫ 6x² dx 를 구하시오.", a: "2x³ + C" },
+                { source: "교과서 [문제 3 변형]", q: "부정적분 공식을 이용하여 다음을 구하시오: ∫ x⁷ dx", a: "(1/8)x⁸ + C" },
+                { source: "교과서 [날개 증명]", q: "도함수가 0인 함수 { G(x) - F(x) }' = 0 일 때, G(x) - F(x)는 항상 어떤 함수인가?", a: "상수함수 (상수 C)" }
+            ]
+        },
+        {
+            round: 4, title: "교과서 개념 믹스 IV",
+            questions: [
+                { source: "교과서 [함께하기 표]", q: "함수 f(x) = x 의 한 부정적분 F(x)를 구하시오.", a: "(1/2)x² + C" },
+                { source: "교과서 [본문 용어]", q: "함수 f(x)의 부정적분을 구하는 것을 'f(x)를 ( &nbsp; )한다'고 하며 그 계산법을 ( &nbsp; )이라 한다.", a: "적분(한다), 적분법" },
+                { source: "교과서 [문제 1 응용]", q: "( x⁴ - 5x )' = 4x³ - 5 임을 이용하여 ∫ (4x³ - 5) dx 를 구하시오.", a: "x⁴ - 5x + C" },
+                { source: "교과서 [문제 3 응용]", q: "부정적분 공식을 이용하여 다음을 구하시오: ∫ x²⁰ dx", a: "(1/21)x²¹ + C" },
+                { source: "교과서 [미적분 관계]", q: "다음 식의 계산 결과를 기호로 간단히 나타내시오: d/dx [ ∫ f(x) dx ]", a: "f(x)" }
+            ]
+        }
+    ];
+
+    const TEAM_COUNT = 7;
+    const ROUND_COUNT = 4;
+    const TIME_LIMIT = 20;
+    const ROOM_KEY = "CALCULUS_CANVAS_ROOM";
+
+    function chooseMode(mode) {
+        document.getElementById("view-mode-select").classList.add("hidden");
+        if (mode === "teacher") {
+            document.getElementById("view-teacher").classList.remove("hidden");
+            initTeacherSetup();
+        } else {
+            document.getElementById("view-student").classList.remove("hidden");
+        }
+    }
+
+    /* ---------- QR코드 생성 함수: 입력된 URL로만 생성 ---------- */
+    function renderQRCode() {
+        const qrContainer = document.getElementById("qrcode");
+        const urlInput = document.getElementById("t-join-url");
+        const url = (urlInput.value || "").trim();
+
+        qrContainer.innerHTML = "";
+
+        if (!url || !(url.startsWith("http://") || url.startsWith("https://"))) {
+            qrContainer.innerHTML = "<div style='font-size:12px;color:#dc3545;padding:10px;'>올바른 웹 주소(http/https)를 입력하면<br>그 주소로 접속하는 QR코드가 생성됩니다.</div>";
+            return;
+        }
+
+        new QRCode(qrContainer, {
+            text: url,
+            width: 150,
+            height: 150,
+            colorDark : "#1e3c72",
+            colorLight : "#ffffff"
+        });
+    }
+
+    /* ----------------- 교사용: 조 설정 & 게임 진행 (이전 코드와 동일 로직) ----------------- */
+    let tTeams = [];
+    let tScores = Array.from({ length: TEAM_COUNT }, () => [0,0,0,0]);
+    let currentR = 0;
+    let currentQ = 0;
+    let timerInterval = null;
+    let timeLeft = TIME_LIMIT;
+
+    function initTeacherSetup() {
+        // http/https로 열린 경우 기본 URL 미리 넣어주기
+        const joinInput = document.getElementById("t-join-url");
+        if (window.location.href.startsWith("http")) {
+            joinInput.value = window.location.href;
+            renderQRCode();
+        }
+
+        const grid = document.getElementById("t-setup-grid");
+        grid.innerHTML = "";
+        for (let i = 0; i < TEAM_COUNT; i++) {
+            grid.innerHTML += `
+                <div class="card" style="margin-bottom:8px; padding:10px;">
+                    <div style="font-weight:bold; color:#2a5298; margin-bottom:5px;">${i+1}조 설정</div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+                        <input type="text" id="t-name-${i}" value="${i+1}조" style="padding:4px; font-size:12px;">
+                        <input type="text" id="t-m-${i}-0" placeholder="1R 학생" style="padding:4px; font-size:12px;">
+                        <input type="text" id="t-m-${i}-1" placeholder="2R 학생" style="padding:4px; font-size:12px;">
+                        <input type="text" id="t-m-${i}-2" placeholder="3R 학생" style="padding:4px; font-size:12px;">
+                        <input type="text" id="t-m-${i}-3" placeholder="4R 학생" style="padding:4px; font-size:12px;">
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function teacherStartGame() {
+        if (!db) { alert("Firebase 설정(firebaseConfig)을 먼저 입력해 주세요!"); return; }
+
+        tTeams = [];
+        for (let i = 0; i < TEAM_COUNT; i++) {
+            const name = document.getElementById(`t-name-${i}`).value.trim() || `${i+1}조`;
+            const members = [
+                document.getElementById(`t-m-${i}-0`).value.trim() || `학생1`,
+                document.getElementById(`t-m-${i}-1`).value.trim() || `학생2`,
+                document.getElementById(`t-m-${i}-2`).value.trim() || `학생3`,
+                document.getElementById(`t-m-${i}-3`).value.trim() || `학생4`
+            ];
+            tTeams.push({ id: i, name: name, members: members });
+        }
+
+        currentR = 0;
+        currentQ = 0;
+        tScores = Array.from({ length: TEAM_COUNT }, () => [0,0,0,0]);
+
+        document.getElementById("t-setup-screen").classList.add("hidden");
+        document.getElementById("t-game-screen").classList.remove("hidden");
+
+        listenTeacherLiveDrawings();
+        teacherRenderQuestion();
+    }
+
+    function teacherRenderQuestion() {
+        clearInterval(timerInterval);
+        const rData = quizData[currentR];
+        const qData = rData.questions[currentQ];
+
+        document.getElementById("t-round-badge").innerText = `Round ${currentR + 1}`;
+        document.getElementById("t-round-title").innerText = rData.title;
+        document.getElementById("t-q-num").innerText = `문제 ${currentQ + 1} / 5`;
+        document.getElementById("t-q-source").innerText = `${qData.source} (배점 1점)`;
+        document.getElementById("t-q-content").innerHTML = qData.q;
+        document.getElementById("t-q-answer").innerHTML = `정답: <strong>${qData.a}</strong>`;
+        document.getElementById("t-q-answer").style.display = "none";
+        document.getElementById("btn-t-reveal").style.display = "inline-block";
+
+        db.ref(ROOM_KEY).set({
+            teams: tTeams,
+            currentR: currentR,
+            currentQ: currentQ,
+            status: "PLAYING",
+            qData: qData,
+            timeLeft: TIME_LIMIT,
+            answers: {}
+        });
+
+        start20SecTimer();
+    }
+
+    function start20SecTimer() {
+        timeLeft = TIME_LIMIT;
+        updateTimerDisplay();
+
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            updateTimerDisplay();
+            db.ref(ROOM_KEY).update({ timeLeft: timeLeft });
+
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                timeOverAction();
+            }
+        }, 1000);
+    }
+
+    function updateTimerDisplay() {
+        const textElem = document.getElementById("t-timer-text");
+        const barElem = document.getElementById("t-timer-bar");
+        textElem.innerText = `${timeLeft}초`;
+        barElem.style.width = `${(timeLeft / TIME_LIMIT) * 100}%`;
+        if (timeLeft <= 5) {
+            textElem.style.background = "#dc3545";
+            barElem.style.background = "#dc3545";
+        } else {
+            textElem.style.background = "#28a745";
+            barElem.style.background = "#28a745";
+        }
+    }
+
+    function timeOverAction() {
+        document.getElementById("t-q-answer").style.display = "block";
+        document.getElementById("btn-t-reveal").style.display = "none";
+        db.ref(ROOM_KEY).update({ status: "TIME_OVER" });
+    }
+
+    function teacherRevealAnswer() {
+        clearInterval(timerInterval);
+        timeOverAction();
+    }
+
+    function listenTeacherLiveDrawings() {
+        db.ref(ROOM_KEY + "/answers").on("value", (snap) => {
+            const answers = snap.val() || {};
+            const grid = document.getElementById("t-live-grid");
+            grid.innerHTML = "";
+            tTeams.forEach((t, idx) => {
+                const ans = answers[idx];
+                const isSubmitted = !!ans;
+                const imgData = isSubmitted ? ans.imageData : "";
+                const rep = t.members[currentR];
+                grid.innerHTML += `
+                    <div class="live-card ${isSubmitted ? 'submitted' : ''}">
+                        <div style="font-size:12px; font-weight:bold; color:#1e3c72;">${t.name}</div>
+                        <div style="font-size:11px; color:#666;">출전: ${rep}</div>
+                        <img class="thumb-canvas" src="${imgData || 'data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\'><text x=\'50%\' y=\'50%\' font-size=\'11\' fill=\'%23aaa\' text-anchor=\'middle\' dominant-baseline=\'middle\'>작성대기</text></svg>'}">
+                        <label style="font-size:11px; cursor:pointer;">
+                            <input type="checkbox" id="chk-score-${idx}" style="transform:scale(1.2);"> 정답(+1점)
+                        </label>
+                    </div>
+                `;
+            });
+        });
+    }
+
+    function teacherNextQuestion() {
+        clearInterval(timerInterval);
+        for (let i = 0; i < TEAM_COUNT; i++) {
+            const chk = document.getElementById(`chk-score-${i}`);
+            if (chk && chk.checked) tScores[i][currentR] += 1;
+        }
+        currentQ++;
+        if (currentQ >= 5) teacherShowScoreboard();
+        else teacherRenderQuestion();
+    }
+
+    function teacherShowScoreboard() {
+        document.getElementById("t-game-screen").classList.add("hidden");
+        document.getElementById("t-scoreboard-screen").classList.remove("hidden");
+
+        const isLast = (currentR === ROUND_COUNT - 1);
+        document.getElementById("t-score-title").innerText = isLast ? "🏆 최종 결과 발표 🏆" : `🏁 Round ${currentR + 1} 종료! 중간 집계`;
+
+        const tbody = document.getElementById("t-score-tbody");
+        tbody.innerHTML = "";
+        const summary = tTeams.map((t, idx) => {
+            const tot = tScores[idx].reduce((a,b)=>a+b, 0);
+            return { name: t.name, r: tScores[idx], total: tot };
+        }).sort((a,b)=>b.total-a.total);
+
+        summary.forEach((item, rank) => {
+            tbody.innerHTML += `
+                <tr>
+                    <td><strong>${rank+1}위</strong></td>
+                    <td style="font-weight:bold;">${item.name}</td>
+                    <td>${item.r[0]} / 5</td>
+                    <td>${item.r[1]} / 5</td>
+                    <td>${item.r[2]} / 5</td>
+                    <td>${item.r[3]} / 5</td>
+                    <td style="font-weight:bold; color:#ff6b6b; font-size:16px;">${item.total} / 20</td>
+                </tr>
+            `;
+        });
+
+        db.ref(ROOM_KEY).update({ status: "ROUND_END" });
+
+        const nextBtn = document.getElementById("btn-t-nextround");
+        if (isLast) {
+            nextBtn.innerText = "🔄 새로운 게임 시작하기";
+            nextBtn.onclick = () => location.reload();
+        } else {
+            nextBtn.innerText = `Round ${currentR + 2} 시작하기 ➜`;
+            nextBtn.onclick = teacherNextRound;
+        }
+    }
+
+    function teacherNextRound() {
+        currentR++;
+        currentQ = 0;
+        document.getElementById("t-scoreboard-screen").classList.add("hidden");
+        document.getElementById("t-game-screen").classList.remove("hidden");
+        teacherRenderQuestion();
+    }
+
+    /* ----------------- 학생용: 손글씨 제출 ----------------- */
+    let sMyTeamId = null;
+    let sMyName = "";
+    let canvas, ctx;
+    let isDrawing = false;
+    let isLocked = false;
+
+    function studentJoin() {
+        if (!db) { alert("Firebase 설정이 완료되지 않았습니다."); return; }
+        const sel = document.getElementById("s-select-team").value;
+        const name = document.getElementById("s-input-name").value.trim();
+        if (!sel || !name) { alert("조와 이름을 정확히 입력해 주세요."); return; }
+
+        sMyTeamId = parseInt(sel, 10);
+        sMyName = name;
+
+        document.getElementById("s-login-screen").classList.add("hidden");
+        document.getElementById("s-game-screen").classList.remove("hidden");
+
+        initCanvas();
+        listenStudentRoom();
+    }
+
+    function initCanvas() {
+        canvas = document.getElementById("draw-canvas");
+        ctx = canvas.getContext("2d");
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = 240;
+        ctx.strokeStyle = "#111";
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        const getPos = (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+            const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+            return {x,y};
+        };
+
+        const start = (e) => {
+            if (isLocked) return;
+            isDrawing = true;
+            const p = getPos(e);
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            e.preventDefault();
+        };
+        const move = (e) => {
+            if (!isDrawing || isLocked) return;
+            const p = getPos(e);
+            ctx.lineTo(p.x, p.y);
+            ctx.stroke();
+            e.preventDefault();
+        };
+        const stop = ()=>{ isDrawing=false; };
+
+        canvas.addEventListener("mousedown", start);
+        canvas.addEventListener("mousemove", move);
+        window.addEventListener("mouseup", stop);
+        canvas.addEventListener("touchstart", start, {passive:false});
+        canvas.addEventListener("touchmove", move, {passive:false});
+        window.addEventListener("touchend", stop);
+    }
+
+    function clearCanvas() {
+        if (ctx && !isLocked) ctx.clearRect(0,0,canvas.width,canvas.height);
+    }
+
+    function listenStudentRoom() {
+        db.ref(ROOM_KEY).on("value",(snap)=>{
+            const data = snap.val(); if (!data) return;
+            const curR = data.currentR || 0;
+            const curQ = data.currentQ || 0;
+            const qData = data.qData;
+            const status = data.status;
+            const leftSec = data.timeLeft !== undefined ? data.timeLeft : TIME_LIMIT;
+            const teamInfo = data.teams ? data.teams[sMyTeamId] : null;
+
+            document.getElementById("s-header-team").innerText = teamInfo ? teamInfo.name : `${sMyTeamId+1}조`;
+            document.getElementById("s-header-q").innerText = `문제 ${curQ+1}/5`;
+            document.getElementById("s-timer-badge").innerText = `${leftSec}초`;
+
+            if (teamInfo) {
+                const rep = teamInfo.members[curR];
+                const isMyTurn = (rep.trim() === sMyName.trim());
+                const banner = document.getElementById("s-role-banner");
+                if (isMyTurn) {
+                    banner.style.background="#d4edda"; banner.style.color="#155724";
+                    banner.innerText=`🎯 이번 문제는 [${sMyName}] 님의 출전 차례입니다!`;
+                    document.getElementById("s-canvas-panel").style.display="block";
+                } else {
+                    banner.style.background="#fff3cd"; banner.style.color="#856404";
+                    banner.innerText=`📢 이번 문제 우리 조 대표: [${rep}]`;
+                    document.getElementById("s-canvas-panel").style.display="none";
+                }
+            }
+
+            if (qData) {
+                document.getElementById("s-q-source").innerText = qData.source;
+                document.getElementById("s-q-content").innerHTML = qData.q;
+            }
+
+            const overlay = document.getElementById("s-canvas-overlay");
+            const submitBtn = document.getElementById("btn-s-submit");
+            const clearBtn = document.getElementById("btn-s-clear");
+            const ansBox = document.getElementById("s-q-answer");
+
+            if (status === "TIME_OVER" || status === "REVEALED") {
+                isLocked = true;
+                overlay.style.display="flex";
+                submitBtn.disabled = true;
+                clearBtn.disabled = true;
+                ansBox.style.display="block";
+                ansBox.innerHTML=`정답: <strong>${qData.a}</strong>`;
+            } else if (status === "PLAYING") {
+                isLocked=false;
+                overlay.style.display="none";
+                submitBtn.disabled=false;
+                clearBtn.disabled=false;
+                ansBox.style.display="none";
+                if (canvas && leftSec >= TIME_LIMIT-1) clearCanvas();
+            }
+        });
+    }
+
+    function studentSubmitDrawing() {
+        if (!canvas || isLocked) return;
+        const imgData = canvas.toDataURL("image/jpeg",0.5);
+        db.ref(`${ROOM_KEY}/answers/${sMyTeamId}`).set({
+            studentName:sMyName,
+            imageData:imgData,
+            timestamp:Date.now()
+        });
+        document.getElementById("s-submit-status").style.display="block";
+        document.getElementById("btn-s-submit").disabled=true;
+        setTimeout(()=>{
+            document.getElementById("s-submit-status").style.display="none";
+            if (!isLocked) document.getElementById("btn-s-submit").disabled=false;
+        },2000);
+    }
+</script>
+</body>
+</html>
